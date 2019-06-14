@@ -1,0 +1,40 @@
+import pandas as pd
+import requests
+
+class Processor:
+    def mean(self, __data, key):
+        return data.describe().mean()[key]
+
+    def strip_text(self, __str):
+        return __str.strip() if __str is not None else None
+
+
+class MailProcessor(Processor):
+    def get_data(self):
+        return requests.get('http://www.pythonlearn.com/code3/mbox.txt').text
+
+    def process(self, __data: str) -> pd.DataFrame:
+        result = []
+        for item in __data.split('----------------------'):
+            __dict = list(filter(lambda x: x.count(":") == 1, filter(len, item.split('\n'))))
+            __dict = {i.split(":")[0]: i.split(":")[1] for i in __dict}
+            dspam_conf = self.strip_text(__dict.get('X-DSPAM-Confidence'))
+            dspam_prob = self.strip_text(__dict.get('X-DSPAM-Probability'))
+            author = self.strip_text(__dict.get('From'))
+            result.append([author, dspam_prob, dspam_conf])
+        return pd.DataFrame(result, columns=['Author', 'X-DSPAM-Probability', 'X-DSPAM-Confidence'])
+
+
+if __name__ == '__main__':
+    # Чем больше величина false negative coef, тем меньше вероятность ложного срабатывания, при обнаружении спама.
+    false_negative_coef = 2.5
+    processor = MailProcessor()
+    data = processor.get_data()
+    data = processor.process(data)
+    print("X-DSPAM-Confidence avg = {0}".format(processor.mean(data, 'X-DSPAM-Confidence')))
+    mail_count_by_author = data.groupby(['Author']).size()
+    hist = mail_count_by_author.reset_index()
+    hist.to_csv("hist.csv", index=False, sep=';')
+    mail_count_median = mail_count_by_author.describe().median()
+    print("Spammers:")
+    print(mail_count_by_author[mail_count_by_author > mail_count_median * false_negative_coef])
